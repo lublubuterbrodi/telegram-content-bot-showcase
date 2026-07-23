@@ -31,7 +31,16 @@ This repository serves as a technical showcase of the project's architecture and
 
 ## 🏗 System Overview
 
-![System Overview](docs/system-overview.png)
+![System Overview](./docs/system-overview.png)
+
+<h2>📸 Screenshots</h2>
+
+<p align="center">
+  <img src="./screenshots/home.png" alt="Start" width="220"/>
+  <img src="./screenshots/menu.png" alt="Menu" width="220"/>
+  <img src="./screenshots/buyextra.png" alt="Extra" width="220"/>
+  <img src="./screenshots/paid content.png" alt="Premium" width="220"/>
+</p>
 
 ---
 
