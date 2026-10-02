@@ -1,3 +1,5 @@
+# Telegram Content Publishing Bot
+
 ![Node.js](https://img.shields.io/badge/Node.js-22.x-339933?logo=node.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript)
 ![Telegraf](https://img.shields.io/badge/Telegraf-Telegram-26A5E4?logo=telegram)
@@ -5,56 +7,164 @@
 ![PM2](https://img.shields.io/badge/PM2-Production-2B037A)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 
-# Telegram Content Delivery Bot
+> Production-ready Telegram automation service built with **Node.js**, **TypeScript**, **Telegraf**, and **Supabase** for scheduled multi-channel content publishing.
 
-> Production-ready Telegram bot built with **Node.js**, **TypeScript**, **Telegraf**, and **Supabase** for automated personalized content delivery.
+The system uses a private Telegram channel as content storage, automatically categorizes uploaded media, maintains independent publishing queues, builds photo/video albums, and distributes content across three Telegram channels according to scheduled publishing rules.
 
-The bot allows users to subscribe to different content categories, receive daily personalized updates, manage their preferences, and purchase additional content using Telegram Stars.
-
-This repository serves as a technical showcase of the project's architecture and implementation. The production source code is private.
+The production source code and content infrastructure are private. This repository serves as a technical showcase of the architecture and implementation.
 
 ---
 
 ## ✨ Features
 
-- 📬 Daily automated content delivery
-- 🎯 Personalized content selection
-- 📂 Multiple content categories
-- ⏸ Pause / Resume delivery at any time
-- 🌍 Multi-language interface
-- ⭐ Premium content unlocked with Telegram Stars
-- 💾 Persistent user preferences
-- 🚦 Built-in request rate limiting (250–600 ms)
-- ☁️ Production deployment on Contabo VPS
-
----
-
-## 🏗 System Overview
-
-![System Overview](./docs/system-overview.png)
-
-<h2>📸 Screenshots</h2>
-
-<p align="center">
-  <img src="./screenshots/home.png" alt="Start" width="220"/>
-  <img src="./screenshots/menu.png" alt="Menu" width="220"/>
-  <img src="./screenshots/buyextra.png" alt="Extra" width="220"/>
-</p>
+- Automated content ingestion from a private Telegram storage channel
+- Tag-based content classification
+- Four independent content categories
+- Photo and video processing
+- Automatic Telegram media album creation
+- Three destination publishing channels
+- Independent content queues with persistent cursors
+- Scheduled publishing with `node-cron`
+- Duplicate-safe content ingestion
+- Queue locking to prevent overlapping publishing jobs
+- Telegram support message routing
+- Supabase / PostgreSQL persistence
+- Production deployment on Contabo VPS
+- PM2 process management
 
 ---
 
 ## ⚙️ How It Works
 
-1. The administrator uploads content into a private Telegram storage channel.
-2. Every content item belongs to one of three predefined categories.
-3. Users select which categories they want to receive.
-4. The bot stores user preferences in Supabase.
-5. A daily scheduler automatically:
-   - selects active users,
-   - retrieves new content by category,
-   - delivers personalized content,
-   - logs successful deliveries.
-6. Users can pause deliveries, change language, update preferences, or unlock additional content using Telegram Stars.
+### 1. Content Storage
+
+Content is uploaded manually to a private Telegram storage channel.
+
+The administrator can switch the active category by sending a predefined tag.
+
+All following photos or videos are automatically associated with that category until another tag is selected.
+
+For every media item, the bot stores:
+
+- Telegram storage channel ID;
+- message ID;
+- Telegram `file_id`;
+- media type;
+- content tag;
+- media group ID when applicable;
+- creation metadata.
+
+The actual media files remain inside Telegram.
+
+Supabase stores only the metadata required to organize and publish the content.
+
+---
+
+### 2. Content Queues
+
+The publishing system maintains several independent queues based on:
+
+- content category;
+- media type;
+- destination channel.
+
+Each queue has its own persistent cursor stored in Supabase.
+
+The cursor tracks the last successfully published item using its timestamp and Telegram message ID.
+
+This allows the bot to continue publishing from the correct position after a restart without re-sending previously processed content.
+
+---
+
+### 3. Album Generation
+
+Different queues use different publishing strategies.
+
+For example:
+
+- individual videos can be copied directly;
+- several photos can be combined into a new Telegram media group;
+- existing Telegram media groups can be reconstructed and published as complete albums.
+
+The publisher preserves the original content order using message IDs and stored media group identifiers.
+
+---
+
+### 4. Scheduled Publishing
+
+Content distribution is automated using `node-cron`.
+
+Each destination channel has its own publishing schedule.
+
+Depending on the queue, scheduled jobs can publish:
+
+- single videos;
+- generated photo albums;
+- complete stored media groups.
+
+All schedules run using an explicitly configured timezone.
+
+Publishing operations are wrapped in error handling so that a failed scheduled job does not stop the scheduler.
+
+---
+
+### 5. Queue Protection
+
+Each queue uses an in-memory lock while publishing.
+
+If another scheduled task attempts to process the same queue before the previous operation has finished, the duplicate execution is skipped.
+
+This prevents concurrent jobs from publishing the same content or moving the same cursor simultaneously.
+
+---
+
+### 6. Support Flow
+
+The bot also provides a lightweight support system.
+
+When a user sends a private message:
+
+1. the message is forwarded to a dedicated support chat;
+2. the relationship between the support message and Telegram user is stored in Supabase;
+3. an administrator can reply directly to that message;
+4. the bot routes the response back to the original user.
+
+This allows support conversations to be handled from a centralized Telegram chat without exposing internal infrastructure.
+
+---
+
+## 🏗 Architecture
+
+```text
+Private Telegram Storage Channel
+             │
+             │ photos / videos
+             │ + category tags
+             ▼
+      Channel Ingestion
+             │
+             ▼
+     Supabase / PostgreSQL
+             │
+             │ metadata
+             │ queue cursors
+             │
+             ▼
+       Content Publisher
+        ┌────┼────┐
+        │    │    │
+        ▼    ▼    ▼
+     Queue  Queue  Queue
+        │    │    │
+        └────┼────┘
+             │
+             ▼
+        node-cron
+             │
+     ┌───────┼───────┐
+     ▼       ▼       ▼
+Channel A Channel B Channel C
+```
 
 ---
 
@@ -62,7 +172,7 @@ This repository serves as a technical showcase of the project's architecture and
 
 ### Backend
 
-- Node.js
+- Node.js 22
 - TypeScript
 - Telegraf
 - Telegram Bot API
@@ -72,93 +182,116 @@ This repository serves as a technical showcase of the project's architecture and
 - Supabase
 - PostgreSQL
 
+### Automation
+
+- node-cron
+- Independent scheduled publishing jobs
+- Persistent queue cursors
+- Queue locking
+
 ### Infrastructure
 
 - Contabo VPS
 - Ubuntu
 - PM2
-- Cron Scheduler
 
 ---
 
-## 📦 Architecture Highlights
+## 📦 Project Structure
 
-### Content Storage
+```text
+src/
+└── bot/
+    ├── services/
+    │   ├── channelContent.ts
+    │   ├── publisher.ts
+    │   ├── scheduler.ts
+    │   └── support.ts
+    │
+    ├── shared/
+    │   ├── constants.ts
+    │   ├── types.ts
+    │   └── utils.ts
+    │
+    ├── bot.ts
+    ├── index.ts
+    └── supabase.ts
+```
 
-Instead of storing large amounts of content directly in the database, the bot uses a private Telegram storage channel.
+### Main Services
 
-Only message identifiers and metadata are stored inside the database, reducing storage requirements while leveraging Telegram as the primary content source.
+**`channelContent.ts`**  
+Processes new posts from the private storage channel, detects category tags and media types, and stores content metadata in Supabase.
+
+**`publisher.ts`**  
+Manages content queues, persistent cursors, media albums, queue locks, and publishing to destination channels.
+
+**`scheduler.ts`**  
+Defines recurring publishing jobs using `node-cron` and routes each queue to the appropriate Telegram channel.
+
+**`support.ts`**  
+Handles user support messages and routes administrator replies back to the correct Telegram user.
 
 ---
 
-### Personalized Delivery
+## 🗄 Persistence
 
-Each user can configure:
+Supabase is used to persist application state.
 
-- preferred content categories;
-- interface language;
-- delivery status (active / paused).
+The main stored data includes:
 
-The scheduler generates an individual delivery list for every active user.
-
----
-
-### Telegram Stars Integration
-
-Premium content is unlocked through Telegram Stars.
-
-The payment flow updates user permissions automatically after successful transactions.
-
----
-
-### Rate Limiting
-
-Telegram API has strict request limits.
-
-To improve reliability during bulk deliveries, the bot introduces a randomized delay between requests (250–600 ms), helping prevent flood limits during scheduled broadcasts.
-
----
-
-## 🗄 Database
-
-The database stores:
-
-- user accounts;
-- preferences;
-- delivery history;
 - content metadata;
-- payment records;
-- usage statistics.
+- Telegram file and message identifiers;
+- media group identifiers;
+- queue cursors;
+- support message mappings.
+
+A key part of the architecture is the persistent publishing cursor.
+
+Instead of loading content from the beginning each time, every queue remembers its last published position and requests only newer items.
 
 ---
 
 ## 🚀 Deployment
 
-Production environment:
+The production bot runs continuously on a **Contabo VPS**.
 
-- Contabo VPS
-- Ubuntu
-- PM2 process manager
-- Automatic restart on crash
-- Daily scheduled jobs
-- Supabase cloud database
+The deployment includes:
 
----
+- Ubuntu server environment;
+- PM2 process management;
+- automatic restart after crashes;
+- environment-based configuration;
+- persistent Supabase database;
+- scheduled cron jobs;
+- private Telegram storage infrastructure.
 
-## 📈 Project Goals
-
-The project focuses on:
-
-- scalability;
-- maintainability;
-- modular architecture;
-- reliable automated content delivery;
-- clean separation of services.
+Because publishing state is stored in Supabase, restarting the Node.js process does not reset the content queues.
 
 ---
 
-## 🔒 Source Code
+## 📈 Technical Highlights
 
-The production repository is private because the application is actively used by real users.
+- Multi-channel Telegram publishing architecture
+- Telegram used as primary media storage
+- Tag-driven content ingestion
+- Supabase-backed publishing queues
+- Persistent per-queue cursors
+- Automatic media album generation
+- Ordered media publishing
+- Independent photo and video workflows
+- Cron-based publishing schedules
+- Queue concurrency protection
+- Duplicate-safe database ingestion
+- Telegram support routing
+- Production VPS deployment
 
-This repository is intended to demonstrate the project's architecture, system design, and technical implementation.
+---
+
+## 🔒 Privacy & Source Code
+
+The production source code is private because the application is actively deployed and connected to private Telegram channels and production infrastructure.
+
+This repository is intended to demonstrate the project's architecture, system design, deployment approach, and main engineering decisions.
+
+No private channel identifiers, bot tokens, user data, production media, payment data, or environment configuration are included.
